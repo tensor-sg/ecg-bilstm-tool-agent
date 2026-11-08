@@ -1,0 +1,577 @@
+{
+  "generated_at": "2026-11-09 01:45",
+  "model_path": "models/ecg_lstm.keras",
+  "train_split": "inter_patient",
+  "classes": [
+    "N",
+    "S",
+    "V"
+  ],
+  "records": [
+    "100",
+    "103",
+    "105",
+    "111",
+    "113",
+    "117",
+    "121",
+    "123",
+    "200",
+    "202",
+    "210",
+    "212",
+    "213",
+    "214",
+    "219",
+    "221",
+    "222",
+    "228",
+    "231",
+    "232",
+    "233",
+    "234"
+  ],
+  "annotated": {
+    "n_beats": 49297,
+    "accuracy": 0.9453,
+    "macro_f1": 0.65,
+    "balanced_accuracy": 0.6297,
+    "per_class": {
+      "N": {
+        "support": 44240,
+        "sensitivity": 0.991,
+        "ppv": 0.9581,
+        "specificity": 0.6207,
+        "f1": 0.9743
+      },
+      "S": {
+        "support": 1837,
+        "sensitivity": 0.0958,
+        "ppv": 0.3614,
+        "specificity": 0.9934,
+        "f1": 0.1515
+      },
+      "V": {
+        "support": 3220,
+        "sensitivity": 0.8022,
+        "ppv": 0.8472,
+        "specificity": 0.9899,
+        "f1": 0.8241
+      }
+    },
+    "confusion_matrix": [
+      [
+        43843,
+        249,
+        148
+      ],
+      [
+        1343,
+        176,
+        318
+      ],
+      [
+        575,
+        62,
+        2583
+      ]
+    ],
+    "ci95": {
+      "n_boot": 1000,
+      "unit": "record",
+      "accuracy": [
+        0.8814,
+        0.9813
+      ],
+      "macro_f1": [
+        0.5443,
+        0.7771
+      ],
+      "balanced_accuracy": [
+        0.5596,
+        0.7789
+      ],
+      "per_class": {
+        "N": {
+          "sensitivity": [
+            0.9835,
+            0.9973
+          ],
+          "ppv": [
+            0.9038,
+            0.9901
+          ],
+          "f1": [
+            0.9441,
+            0.991
+          ]
+        },
+        "S": {
+          "sensitivity": [
+            0.0057,
+            0.4981
+          ],
+          "ppv": [
+            0.0692,
+            0.5136
+          ],
+          "f1": [
+            0.0108,
+            0.4741
+          ]
+        },
+        "V": {
+          "sensitivity": [
+            0.6037,
+            0.9256
+          ],
+          "ppv": [
+            0.543,
+            0.9696
+          ],
+          "f1": [
+            0.6056,
+            0.9235
+          ]
+        }
+      }
+    },
+    "excluded_classes_predicted_as": {
+      "Q": {
+        "N": 5,
+        "S": 0,
+        "V": 2
+      },
+      "F": {
+        "N": 380,
+        "S": 1,
+        "V": 7
+      }
+    },
+    "per_record": {
+      "100": {
+        "n_beats": 2271,
+        "accuracy": 0.9921,
+        "true_counts": {
+          "N": 2237,
+          "S": 33,
+          "V": 1
+        },
+        "pred_counts": {
+          "N": 2255,
+          "S": 15,
+          "V": 1
+        }
+      },
+      "103": {
+        "n_beats": 2083,
+        "accuracy": 0.999,
+        "true_counts": {
+          "N": 2081,
+          "S": 2,
+          "V": 0
+        },
+        "pred_counts": {
+          "N": 2083,
+          "S": 0,
+          "V": 0
+        }
+      },
+      "105": {
+        "n_beats": 2567,
+        "accuracy": 0.9618,
+        "true_counts": {
+          "N": 2526,
+          "S": 0,
+          "V": 41
+        },
+        "pred_counts": {
+          "N": 2469,
+          "S": 29,
+          "V": 69
+        }
+      },
+      "111": {
+        "n_beats": 2124,
+        "accuracy": 0.9986,
+        "true_counts": {
+          "N": 2123,
+          "S": 0,
+          "V": 1
+        },
+        "pred_counts": {
+          "N": 2120,
+          "S": 0,
+          "V": 4
+        }
+      },
+      "113": {
+        "n_beats": 1794,
+        "accuracy": 0.9961,
+        "true_counts": {
+          "N": 1788,
+          "S": 6,
+          "V": 0
+        },
+        "pred_counts": {
+          "N": 1787,
+          "S": 0,
+          "V": 7
+        }
+      },
+      "117": {
+        "n_beats": 1534,
+        "accuracy": 1.0,
+        "true_counts": {
+          "N": 1533,
+          "S": 1,
+          "V": 0
+        },
+        "pred_counts": {
+          "N": 1533,
+          "S": 1,
+          "V": 0
+        }
+      },
+      "121": {
+        "n_beats": 1862,
+        "accuracy": 0.9979,
+        "true_counts": {
+          "N": 1860,
+          "S": 1,
+          "V": 1
+        },
+        "pred_counts": {
+          "N": 1858,
+          "S": 0,
+          "V": 4
+        }
+      },
+      "123": {
+        "n_beats": 1517,
+        "accuracy": 0.996,
+        "true_counts": {
+          "N": 1514,
+          "S": 0,
+          "V": 3
+        },
+        "pred_counts": {
+          "N": 1514,
+          "S": 3,
+          "V": 0
+        }
+      },
+      "200": {
+        "n_beats": 2598,
+        "accuracy": 0.9288,
+        "true_counts": {
+          "N": 1742,
+          "S": 30,
+          "V": 826
+        },
+        "pred_counts": {
+          "N": 1918,
+          "S": 9,
+          "V": 671
+        }
+      },
+      "202": {
+        "n_beats": 2134,
+        "accuracy": 0.941,
+        "true_counts": {
+          "N": 2060,
+          "S": 55,
+          "V": 19
+        },
+        "pred_counts": {
+          "N": 1978,
+          "S": 128,
+          "V": 28
+        }
+      },
+      "210": {
+        "n_beats": 2638,
+        "accuracy": 0.9716,
+        "true_counts": {
+          "N": 2421,
+          "S": 22,
+          "V": 195
+        },
+        "pred_counts": {
+          "N": 2473,
+          "S": 6,
+          "V": 159
+        }
+      },
+      "212": {
+        "n_beats": 2747,
+        "accuracy": 1.0,
+        "true_counts": {
+          "N": 2747,
+          "S": 0,
+          "V": 0
+        },
+        "pred_counts": {
+          "N": 2747,
+          "S": 0,
+          "V": 0
+        }
+      },
+      "213": {
+        "n_beats": 2888,
+        "accuracy": 0.9494,
+        "true_counts": {
+          "N": 2640,
+          "S": 28,
+          "V": 220
+        },
+        "pred_counts": {
+          "N": 2780,
+          "S": 0,
+          "V": 108
+        }
+      },
+      "214": {
+        "n_beats": 2257,
+        "accuracy": 0.9761,
+        "true_counts": {
+          "N": 2001,
+          "S": 0,
+          "V": 256
+        },
+        "pred_counts": {
+          "N": 2030,
+          "S": 17,
+          "V": 210
+        }
+      },
+      "219": {
+        "n_beats": 2153,
+        "accuracy": 0.9796,
+        "true_counts": {
+          "N": 2082,
+          "S": 7,
+          "V": 64
+        },
+        "pred_counts": {
+          "N": 2060,
+          "S": 28,
+          "V": 65
+        }
+      },
+      "221": {
+        "n_beats": 2427,
+        "accuracy": 0.9922,
+        "true_counts": {
+          "N": 2031,
+          "S": 0,
+          "V": 396
+        },
+        "pred_counts": {
+          "N": 2014,
+          "S": 18,
+          "V": 395
+        }
+      },
+      "222": {
+        "n_beats": 2481,
+        "accuracy": 0.9117,
+        "true_counts": {
+          "N": 2272,
+          "S": 209,
+          "V": 0
+        },
+        "pred_counts": {
+          "N": 2211,
+          "S": 221,
+          "V": 49
+        }
+      },
+      "228": {
+        "n_beats": 2053,
+        "accuracy": 0.8919,
+        "true_counts": {
+          "N": 1688,
+          "S": 3,
+          "V": 362
+        },
+        "pred_counts": {
+          "N": 1885,
+          "S": 9,
+          "V": 159
+        }
+      },
+      "231": {
+        "n_beats": 1570,
+        "accuracy": 0.993,
+        "true_counts": {
+          "N": 1567,
+          "S": 1,
+          "V": 2
+        },
+        "pred_counts": {
+          "N": 1560,
+          "S": 0,
+          "V": 10
+        }
+      },
+      "232": {
+        "n_beats": 1780,
+        "accuracy": 0.2225,
+        "true_counts": {
+          "N": 398,
+          "S": 1382,
+          "V": 0
+        },
+        "pred_counts": {
+          "N": 1498,
+          "S": 2,
+          "V": 280
+        }
+      },
+      "233": {
+        "n_beats": 3066,
+        "accuracy": 0.9925,
+        "true_counts": {
+          "N": 2229,
+          "S": 7,
+          "V": 830
+        },
+        "pred_counts": {
+          "N": 2239,
+          "S": 0,
+          "V": 827
+        }
+      },
+      "234": {
+        "n_beats": 2753,
+        "accuracy": 0.9822,
+        "true_counts": {
+          "N": 2700,
+          "S": 50,
+          "V": 3
+        },
+        "pred_counts": {
+          "N": 2749,
+          "S": 1,
+          "V": 3
+        }
+      }
+    }
+  },
+  "end_to_end": {
+    "n_beats": 48257,
+    "accuracy": 0.942,
+    "macro_f1": 0.6423,
+    "balanced_accuracy": 0.6289,
+    "per_class": {
+      "N": {
+        "support": 43434,
+        "sensitivity": 0.9866,
+        "ppv": 0.9585,
+        "specificity": 0.6154,
+        "f1": 0.9724
+      },
+      "S": {
+        "support": 1798,
+        "sensitivity": 0.0951,
+        "ppv": 0.3076,
+        "specificity": 0.9917,
+        "f1": 0.1453
+      },
+      "V": {
+        "support": 3025,
+        "sensitivity": 0.805,
+        "ppv": 0.8136,
+        "specificity": 0.9877,
+        "f1": 0.8092
+      }
+    },
+    "confusion_matrix": [
+      [
+        42853,
+        325,
+        256
+      ],
+      [
+        1325,
+        171,
+        302
+      ],
+      [
+        530,
+        60,
+        2435
+      ]
+    ],
+    "ci95": {
+      "n_boot": 1000,
+      "unit": "record",
+      "accuracy": [
+        0.8771,
+        0.98
+      ],
+      "macro_f1": [
+        0.5345,
+        0.7662
+      ],
+      "balanced_accuracy": [
+        0.556,
+        0.7827
+      ],
+      "per_class": {
+        "N": {
+          "sensitivity": [
+            0.9779,
+            0.9944
+          ],
+          "ppv": [
+            0.903,
+            0.9911
+          ],
+          "f1": [
+            0.9416,
+            0.9899
+          ]
+        },
+        "S": {
+          "sensitivity": [
+            0.0064,
+            0.5156
+          ],
+          "ppv": [
+            0.0466,
+            0.4672
+          ],
+          "f1": [
+            0.0115,
+            0.4534
+          ]
+        },
+        "V": {
+          "sensitivity": [
+            0.602,
+            0.9303
+          ],
+          "ppv": [
+            0.4998,
+            0.9531
+          ],
+          "f1": [
+            0.5637,
+            0.9161
+          ]
+        }
+      }
+    },
+    "detection": {
+      "reference_beats": 49712,
+      "detected_beats": 48767,
+      "matched": 48653,
+      "sensitivity": 0.9787,
+      "ppv": 0.9977,
+      "tolerance_ms": 150
+    }
+  },
+  "eval_seconds": 63.7
+}
