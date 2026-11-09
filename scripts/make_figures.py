@@ -227,6 +227,8 @@ def erd():
         table("CHUNK", orange, [("chunk_id = source::i", "PK"), ("source", "FK"), ("chunk_index", ""), ("text", ""), ("embedding[384]", "")]),
         table("CHAT_TURN", "#f3e3ec", [("turn", "PK"), ("message", ""), ("history[]", ""), ("ecg_id", "FK, optional"), ("answer", "")]),
         table("TOOL_CALL", "#f3e3ec", [("turn", "FK"), ("tool", ""), ("arguments", ""), ("result", "")]),
+        table("AGENT_STEP", "#f3e3ec", [("turn", "FK"), ("step_no", ""), ("type (llm / tool)", ""), ("provider, model", "FK"), ("duration_ms", ""), ("tokens", "")]),
+        table("LLM_PROVIDER", "#f3e3ec", [("provider", "PK"), ("model", ""), ("role (main / fallback)", ""), ("api_key (from .env)", "")]),
     ]
     rel = [
         ("PATIENT_RECORD", "ANNOTATION", "1", "N", "has"),
@@ -238,6 +240,8 @@ def erd():
         ("COLLECTION", "DOCUMENT", "1", "N", "stores"),
         ("DOCUMENT", "CHUNK", "1", "N", "split into"),
         ("CHAT_TURN", "TOOL_CALL", "1", "N", "makes"),
+        ("CHAT_TURN", "AGENT_STEP", "1", "N", "traced as"),
+        ("AGENT_STEP", "LLM_PROVIDER", "N", "1", "answered by"),
         ("TOOL_CALL", "CHUNK", "N", "N", "retrieves"),
         ("TOOL_CALL", "ANALYSIS_RESULT", "N", "1", "runs"),
         ("CHAT_TURN", "ECG_UPLOAD", "N", "1", "refers to"),

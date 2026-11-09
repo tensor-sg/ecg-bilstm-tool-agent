@@ -48,7 +48,8 @@ runs the full loop and returns a **step trace**: every LLM decision and tool exe
 End to end through the API's own beat detector: detection sensitivity 0.979, PPV 0.998, accuracy 0.942.
 The model is reliable for normal and ventricular beats but **misses most supraventricular beats**.
 Details, confidence intervals and limitations: [docs/MODEL_CARD.md](docs/MODEL_CARD.md) and [reports/evaluation.md](reports/evaluation.md).
-API reference with real request and response examples: [docs/API.md](docs/API.md). Changes: [CHANGELOG.md](CHANGELOG.md).
+Documentation index: [docs/README.md](docs/README.md): [architecture and ERD](docs/ARCHITECTURE.md),
+[API reference](docs/API.md), [testing](docs/TESTING.md), [model card](docs/MODEL_CARD.md). Changes: [CHANGELOG.md](CHANGELOG.md).
 Speed, calibration (ECE 0.013) and error analysis: [reports/performance.md](reports/performance.md). Test results: [reports/test_report.md](reports/test_report.md).
 
 ## Academic documents
@@ -92,7 +93,10 @@ scripts/
 reports/                      committed evaluation, performance and test results
 tests/                        pytest suite (unit, API, integration, model, performance, live LLM)
 docs/
+  README.md                   index of the documentation
+  ARCHITECTURE.md             components, agent/tool split, request flows, ERD and data dictionary, design decisions
   API.md                      API reference: agent flow, every endpoint, real examples, error codes
+  TESTING.md                  test strategy, suites, thresholds, mutation testing, defects found
   MODEL_CARD.md               model details, validation protocol, results, limitations
   ecg_reference.md            seed document for the knowledge base
   academic/                   synopsis and project report (.docx and .pdf) and their generator

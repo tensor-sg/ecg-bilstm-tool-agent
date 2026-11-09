@@ -41,3 +41,17 @@ syncope or chest pain warrant clinical evaluation.
 Automated beat classifiers trained on MIT-BIH perform well on normal and ventricular beats but are often
 weaker on supraventricular and fusion beats when tested on patients not seen during training
 (inter-patient evaluation). Their output is a screening aid and not a diagnosis.
+
+The LSTM used by the analyze_ecg tool in this system was tested on 22 patients it never saw during training:
+
+- Overall accuracy 94.5%. Normal beats: 99% detected. Ventricular beats (V): 80% detected, and 85% of the beats
+  it calls V are truly V.
+- Supraventricular beats (S): only about 10% detected overall (about 38% when one atypical patient is excluded).
+  A result of zero S beats does not rule out atrial ectopy.
+- Fusion (F) and paced beats are not recognised; fusion beats are almost always reported as normal.
+  Recordings from people with pacemakers are out of scope.
+- The reported confidence is the model's probability for its chosen class. On held-out patients it is well
+  calibrated: beats with confidence of 0.9 or more were correct about 97% of the time.
+- If signal_quality.ok is false, the recording looks like noise or artefact and the beat counts should not be
+  interpreted.
+- Trained on a single lead (MLII) of 1970s Holter recordings; other leads and wearable devices are untested.
