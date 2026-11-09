@@ -7,7 +7,7 @@ Guide and reporting manager: Mr. G. Swaminathan (SAP ID C2385).
 | File | What it is |
 |---|---|
 | `25113170096.pdf` / `.docx` | Project synopsis in the SASTRA template: Times New Roman, title 14 pt bold centred, details in capitals 14 pt, abstract 12 pt justified at 1.5 spacing, ≤ 300 words (currently 291), one page |
-| `Project_Report_25113170096.pdf` / `.docx` | Full report (43 pages): certificate, declaration, abstract, 10 chapters, ERD and diagrams, test-case tables, 36 IEEE-style references, appendices |
+| `Project_Report_25113170096.pdf` / `.docx` | Full report (47 pages): certificate with guide and examiner signature blocks, declaration, abstract, contents with page numbers, 10 chapters, ERD and diagrams, test-case tables, 36 IEEE-style references, appendices |
 | `source/build_documents.js` | Generator for both `.docx` files; numbers and tables are read from the committed results |
 
 ## Submission checklist (synopsis)
@@ -36,3 +36,7 @@ npm install                                       # docx 9.5.1
 node build_documents.js ../../..                  # writes ../25113170096.docx and ../Project_Report_25113170096.docx
 cd .. && soffice --headless --convert-to pdf *.docx
 ```
+
+The build converts the report with LibreOffice (`soffice`) and `pdftotext` to find the page of every heading,
+figure and table, then rebuilds it with those numbers in the contents pages until they are stable. Without
+LibreOffice the report is still written, but the contents pages have no page numbers.

@@ -1,10 +1,12 @@
 // Builds the SASTRA synopsis and the project report (.docx) from the project's committed results.
 // Usage: node build.js <project_root>
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
+const { execFileSync } = require("child_process");
 const {
   Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, AlignmentType, WidthType,
-  BorderStyle, ShadingType, LevelFormat, HeadingLevel, PageBreak, Footer, PageNumber, TabStopType,
+  BorderStyle, ShadingType, LevelFormat, HeadingLevel, PageBreak, Footer, PageNumber, TabStopType, PageOrientation,
 } = require("docx");
 
 const ROOT = process.argv[2];
@@ -54,32 +56,50 @@ function runs(text, base = {}) {
 }
 const P = (text, o = {}) => new Paragraph({ alignment: o.align ?? AlignmentType.JUSTIFIED, spacing: { line: 360, after: o.after ?? 120, before: o.before ?? 0 }, indent: o.indent, keepNext: o.keepNext, children: runs(text, o.run || {}) });
 const C = (text, o = {}) => P(text, { ...o, align: AlignmentType.CENTER });
-const H1 = (text) => new Paragraph({ heading: HeadingLevel.HEADING_1, pageBreakBefore: true, children: [new TextRun(text)] });
-const H1nb = (text) => new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(text)] });
-const H2 = (text) => new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(text)] });
+// marks: headings and captions in document order, for the contents pages (null while building front matter)
+let marks = null;
+const mark = (kind, text) => marks && marks.push({ kind, text });
+const H1 = (text) => (mark("h1", text), new Paragraph({ heading: HeadingLevel.HEADING_1, pageBreakBefore: true, children: [new TextRun(text)] }));
+const H2 = (text) => (mark("h2", text), new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(text)] }));
 const H3 = (text) => new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun(text)] });
 const B = (text, level = 0) => new Paragraph({ numbering: { reference: "bullets", level }, alignment: AlignmentType.JUSTIFIED, spacing: { line: 360, after: 60 }, children: runs(text) });
 const N = (text, ref = "numbers") => new Paragraph({ numbering: { reference: ref, level: 0 }, alignment: AlignmentType.JUSTIFIED, spacing: { line: 360, after: 60 }, children: runs(text) });
 const EQ = (text) => new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 60, after: 120 }, children: [new TextRun({ text, italics: true })] });
 const BR = () => new Paragraph({ children: [new PageBreak()] });
+// Two signature columns: a line to sign on, then the lines under each (left column, right column).
+// width is the text width in DXA; an empty side leaves that column blank.
+function SIGN(left, right, width, o = {}) {
+  const run = (text, bold) => new TextRun({ text, bold, font: FONT, size: o.size ?? 24 });
+  const row = (l, r, extra = {}) => new Paragraph({
+    tabStops: [{ type: TabStopType.LEFT, position: Math.round(width * 0.55) }], spacing: { after: 0, ...extra },
+    children: [run(l ?? ""), run(`\t${r ?? ""}`)],
+  });
+  const ruled = "_________________________";
+  // o.noRule: no line to sign on, only the blank space above the labels (keeps the one-page synopsis on one page)
+  const lines = o.noRule ? [] : [row(left[0] ? ruled : "", right[0] ? ruled : "", { before: o.before ?? 1000 })];
+  for (let i = 0; i < Math.max(left.length, right.length); i += 1) lines.push(row(left[i], right[i], i === 0 && o.noRule ? { before: o.before } : {}));
+  return lines;
+}
 
 let figNo = 0, tabNo = 0;
-const figures = [], tables = [];
 function pngSize(file) {
   const b = fs.readFileSync(file);
   return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
 }
-function FIG(file, caption, widthIn = 5.7) {
-  widthIn = Math.min(widthIn, 5.7);
+// o.landscape puts the figure on its own landscape page (a separate section, see sectioned())
+function FIG(file, caption, widthIn = 5.7, o = {}) {
+  const [maxW, maxH] = o.landscape ? [9.6, 5.1] : [5.7, 8.4];
   const full = path.join(ROOT, "docs", "figures", file);
   const { w, h } = pngSize(full);
+  widthIn = Math.min(widthIn, maxW, (maxH * w) / h);
   const wpx = Math.round(widthIn * 96), hpx = Math.round((wpx * h) / w);
   figNo += 1;
-  figures.push(`Figure ${figNo}: ${caption}`);
-  return [
+  mark("fig", `Figure ${figNo}: ${caption}`);
+  const paras = [
     new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { before: 120, after: 60 }, children: [new ImageRun({ type: "png", data: fs.readFileSync(full), transformation: { width: wpx, height: hpx }, altText: { title: caption, description: caption, name: file } })] }),
     new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [new TextRun({ text: `Figure ${figNo}: `, bold: true, size: 20 }), new TextRun({ text: caption, size: 20 })] }),
   ];
+  return o.landscape ? [{ landscape: paras }] : paras;
 }
 const figRef = () => `Figure ${figNo + 1}`;
 const tabRef = () => `Table ${tabNo + 1}`;
@@ -88,18 +108,20 @@ const border = { style: BorderStyle.SINGLE, size: 4, color: "808080" };
 const borders = { top: border, bottom: border, left: border, right: border };
 function TBL(caption, headers, rows, widths, o = {}) {
   const total = widths.reduce((a, b) => a + b, 0);
-  if (!o.nocap) { tabNo += 1; tables.push(`Table ${tabNo}: ${caption}`); }
-  const cell = (t, i, head) => new TableCell({
+  if (!o.nocap) { tabNo += 1; mark("tab", `Table ${tabNo}: ${caption}`); }
+  const keep = rows.length <= 25;
+  const cell = (t, i, head, last) => new TableCell({
     borders, width: { size: widths[i], type: WidthType.DXA },
     shading: head ? { fill: "D9E2F3", type: ShadingType.CLEAR, color: "auto" } : undefined,
     margins: { top: 40, bottom: 40, left: 80, right: 80 },
-    children: [new Paragraph({ alignment: (o.align && o.align[i]) || AlignmentType.LEFT, children: runs(String(t), { size: o.size || 20, bold: head || undefined }) })],
+    children: [new Paragraph({ keepNext: keep && !last, alignment: (o.align && o.align[i]) || AlignmentType.LEFT, children: runs(String(t), { size: o.size || 20, bold: head || undefined }) })],
   });
   return [
     o.nocap ? new Paragraph({ children: [] }) : new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { before: 160, after: 60 }, children: [new TextRun({ text: `Table ${tabNo}: `, bold: true, size: 20 }), new TextRun({ text: caption, size: 20 })] }),
     new Table({
       width: { size: total, type: WidthType.DXA }, columnWidths: widths,
-      rows: [new TableRow({ tableHeader: true, children: headers.map((h, i) => cell(h, i, true)) }), ...rows.map((r) => new TableRow({ cantSplit: true, children: r.map((t, i) => cell(t, i, false)) }))],
+      rows: [new TableRow({ tableHeader: true, children: headers.map((h, i) => cell(h, i, true, false)) }),
+        ...rows.map((r, k) => new TableRow({ cantSplit: true, children: r.map((t, i) => cell(t, i, false, k === rows.length - 1)) }))],
     }),
     new Paragraph({ spacing: { after: 120 }, children: [] }),
   ];
@@ -145,17 +167,13 @@ function synopsis() {
   const children = [
     new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 240 }, children: [new TextRun({ text: S.title, bold: true, ...f14 })] }),
     line("Student Name", S.name.toUpperCase()),
-    line("Student Registration Number", S.reg, { after: 160 }),
-    line("Approved Guide Name", S.guide.toUpperCase(), { after: 160 }),
-    line("Name of the Company with address", S.company, { after: 120 }),
+    line("Student Registration Number", S.reg, { after: 80 }),
+    line("Approved Guide Name", S.guide.toUpperCase(), { after: 80 }),
+    line("Name of the Company with address", S.company, { after: 60 }),
     new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 60, after: 120 }, children: [new TextRun({ text: "Abstract / Problem Statement", bold: true, ...f14 })] }),
     ...ABSTRACT.map((t) => new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { line: 360, after: 0 }, children: [new TextRun({ text: t, font: FONT, size: 24 })] })),
-    new Paragraph({ spacing: { before: 360 }, tabStops: [{ type: TabStopType.RIGHT, position: 9026 }], children: [
-      new TextRun({ text: "Signature of the Student", font: FONT, size: 24 }), new TextRun({ text: "\tSignature of the Reporting Manager", font: FONT, size: 24 })] }),
-    new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: 9026 }], children: [
-      new TextRun({ text: `(${S.name.toUpperCase()})`, font: FONT, size: 24 }), new TextRun({ text: `\t(${S.guide.toUpperCase()})`, font: FONT, size: 24 })] }),
-    new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: 9026 }], children: [
-      new TextRun({ text: `Reg. No. ${S.reg}`, font: FONT, size: 24 }), new TextRun({ text: `\tSAP ID: ${S.rmSap}`, font: FONT, size: 24 })] }),
+    ...SIGN(["Signature of the Student", `(${S.name.toUpperCase()})`, `Reg. No. ${S.reg}`],
+      ["Signature of the Reporting Manager", `(${S.guide.toUpperCase()})`, `SAP ID: ${S.rmSap}`], 9026, { before: 600, noRule: true }),
   ];
   return new Document({
     creator: S.name, title: S.title, description: "Project synopsis", styles: { default: { document: { run: { font: FONT, size: 24 } } } },
@@ -187,16 +205,13 @@ function front() {
 
     H1("BONAFIDE CERTIFICATE"),
     P(`This is to certify that the project report titled **“${S.title}”** is a bonafide record of the work carried out by **${S.name.toUpperCase()}** (Registration Number **${S.reg}**) in partial fulfilment of the requirements for the award of the degree of ${S.programme} of ${S.university}, during the ${S.semester.toLowerCase()} of the programme, under my guidance and supervision.`),
-    new Paragraph({ spacing: { before: 1200 }, tabStops: [{ type: TabStopType.RIGHT, position: 8306 }], children: [new TextRun("Signature of the Guide"), new TextRun("\tDate:")] }),
-    new Paragraph({ children: [new TextRun({ text: S.guide.toUpperCase(), bold: true })] }),
-    new Paragraph({ children: [new TextRun("Project Guide and Reporting Manager")] }),
-    new Paragraph({ children: [new TextRun(`SAP ID: ${S.rmSap}`)] }),
+    ...SIGN([], ["Signature of the Guide", S.guide.toUpperCase(), "Guide and Reporting Manager", `SAP ID: ${S.rmSap}`, "Date:"], 8306, { before: 1200 }),
+    P("Submitted for the project viva-voce examination held on ____________________ .", { before: 720 }),
+    ...SIGN(["Internal Examiner", "Name:", "Date:"], ["External Examiner", "Name:", "Date:"], 8306, { before: 1200 }),
 
     H1("DECLARATION"),
     P(`I, **${S.name.toUpperCase()}** (Registration Number **${S.reg}**), declare that the project report titled **“${S.title}”** submitted to ${S.university} is a record of original work done by me under the guidance of ${S.guide}. The source code, experiments, results and text are my own work. All datasets, publications and software used are acknowledged and cited in the References. The project was carried out at ${S.university}. This report does not contain any confidential information or the name of any customer, and it has not been submitted for the award of any other degree or diploma.`),
-    new Paragraph({ spacing: { before: 1200 }, tabStops: [{ type: TabStopType.RIGHT, position: 8306 }], children: [new TextRun("Place:"), new TextRun("\tSignature of the Student")] }),
-    new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: 8306 }], children: [new TextRun("Date:"), new TextRun({ text: `\t${S.name.toUpperCase()}`, bold: true })] }),
-    new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun(S.email)] }),
+    ...SIGN(["", "Place:", "Date:"], ["Signature of the Student", S.name.toUpperCase(), `Reg. No. ${S.reg}`, S.email], 8306, { before: 1200 }),
 
     H1("ACKNOWLEDGEMENT"),
     P(`I thank my guide and reporting manager, **${S.guide}**, for reviewing the scope, methodology and results of this project and for his guidance throughout. I thank the faculty of the ${S.programme} programme at ${S.university} for the coursework this project builds on.`),
@@ -209,20 +224,24 @@ function front() {
   ];
 }
 
-function contents() {
-  const chapters = [
-    "1. Introduction", "2. Literature Review", "3. Dataset and Data Understanding", "4. Methodology",
-    "5. System Design", "6. Implementation", "7. Testing and Validation", "8. Results and Discussion",
-    "9. Limitations and Ethical Considerations", "10. Conclusion and Future Work", "References",
-    "Appendix A: How to Reproduce", "Appendix B: Complete Test Case Catalogue",
-  ];
+// pages: page number of each mark (same order as marks), or null on the first pass
+function contents(entries, pages) {
+  const TEXT_WIDTH = A4.width - 2160 - 1440;
+  const line = (i, o = {}) => new Paragraph({
+    spacing: { after: o.after ?? 60 }, indent: o.indent ? { left: o.indent } : undefined,
+    tabStops: [{ type: TabStopType.RIGHT, position: TEXT_WIDTH, leader: "dot" }],
+    children: [new TextRun({ text: entries[i].text, size: o.size ?? 22, bold: o.bold }),
+      new TextRun({ text: `\t${pages ? pages[i] : "00"}`, size: o.size ?? 22, bold: o.bold })],
+  });
+  const of = (kind) => entries.map((e, i) => (e.kind === kind ? i : -1)).filter((i) => i >= 0);
+  const toc = entries.map((e, i) => (e.kind === "h1" ? line(i, { bold: true, size: 24, after: 60 }) : e.kind === "h2" ? line(i, { indent: 400, after: 40 }) : null)).filter(Boolean);
   return [
     H1("TABLE OF CONTENTS"),
-    ...chapters.map((c) => new Paragraph({ spacing: { after: 80 }, children: [new TextRun(c)] })),
+    ...toc,
     H1("LIST OF FIGURES"),
-    ...figures.map((f) => new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: f, size: 22 })] })),
+    ...of("fig").map((i) => line(i)),
     H1("LIST OF TABLES"),
-    ...tables.map((t) => new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: t, size: 22 })] })),
+    ...of("tab").map((i) => line(i)),
     H1("LIST OF ABBREVIATIONS"),
     ...TBL("Abbreviations", ["Abbreviation", "Meaning"], [
       ["AAMI", "Association for the Advancement of Medical Instrumentation"], ["API", "Application Programming Interface"],
@@ -346,13 +365,13 @@ function body() {
   add(H1("CHAPTER 5: SYSTEM DESIGN"), H2("5.1 Architecture"),
     P(`${figRef()} shows the components. The design separates the **agentic core** from the **tools**. The agent (agent.py) holds the conversation with the LLM: OpenAI gpt-4o-mini decides which tools to call and writes the answer, and Gemini 2.5 Flash takes over automatically if the OpenAI call fails. The tools (tools.py) are plain functions with JSON schemas: ECG analysis by the Conv-BiLSTM, semantic search of the Chroma knowledge base, and listing of uploaded recordings. They know nothing about the LLM.`),
     P("The FastAPI application exposes this separation as four groups of endpoints: the **Agent API** (/agent) runs the agent loop and returns a step-by-step trace; the **Tools API** (/tools) lists the tool schemas and invokes any tool directly, so another program or agent can use the LSTM exactly as the LLM does; the **ECG** and **Document** endpoints upload recordings and reference documents. All services are created once at start-up (FastAPI lifespan) and shared by the requests."),
-    ...FIG("architecture.png", "System architecture", 6.2),
     H2("5.2 Entity Relationship Diagram"),
-    P(`${figRef()} shows the logical data model. Three groups of entities can be distinguished:`),
+    P(`Figure ${figNo + 2} (after the architecture) shows the logical data model. Three groups of entities can be distinguished:`),
     B("**Training data (grey and green)**: a PATIENT_RECORD has many ANNOTATIONs and is segmented into many BEATs; beats train and evaluate a MODEL_VERSION, whose metadata (classes, hyperparameters, split, metrics) is stored in ecg_lstm_meta.json."),
     B("**Runtime ECG analysis (blue)**: an ECG_UPLOAD is analysed by a MODEL_VERSION into an ANALYSIS_RESULT (heart rate, SDNN, beat counts, signal quality), which lists ABNORMAL_BEATs with time and confidence."),
     B("**Knowledge base and agent (orange and pink)**: a Chroma COLLECTION stores DOCUMENTs, each split into CHUNKs with a 384-dimensional embedding and the identifier source::index. A CHAT_TURN may refer to an ECG_UPLOAD and makes TOOL_CALLs, which retrieve chunks or run an analysis. Each turn is traced as AGENT_STEPs (LLM decisions and tool runs with duration and tokens), each LLM step answered by an LLM_PROVIDER (OpenAI as main, Gemini as fallback)."),
-    ...FIG("erd.png", "Entity relationship diagram (crow's foot notation)", 6.2),
+    ...FIG("architecture.png", "System architecture", 9.6, { landscape: true }),
+    ...FIG("erd.png", "Entity relationship diagram (crow's foot notation)", 5.7),
     P("Physically, chunks, embeddings and collection metadata live in Chroma's on-disk store (chroma_db/), the model and its metadata in models/, and uploaded ECGs in an in-memory registry. The collection records the name of the embedding model that built it, and the service refuses to mix embeddings from different models."),
     H2("5.3 Request Flow of the Agent"),
     P(`${figRef()} shows a typical question about an uploaded ECG. The agent sends the conversation and the tool schemas to the LLM; the LLM requests tool calls; the agent executes them against the real classifier and vector store and returns the JSON results; the LLM then writes an answer grounded in those results. The loop is limited to six LLM calls. Every LLM decision and tool execution is recorded in a trace with its duration and token usage, which the client receives with the answer. Failures of both providers are returned as HTTP 502 with a configuration hint.`),
@@ -652,7 +671,9 @@ function parseJunit(file) {
   return { cases, byFile, total: cases.length, passed: cases.filter((c) => c.status === "passed").length };
 }
 
-function report() {
+// pages: page numbers of the marks found by locatePages() on a previous build, or null
+function report(pages) {
+  figNo = 0; tabNo = 0; marks = [];
   const { out: chapters, junit } = body();
   const refs = [H1("REFERENCES"), ...REFS.map((r, i) => new Paragraph({ spacing: { after: 100, line: 300 }, indent: { left: 600, hanging: 600 }, alignment: AlignmentType.JUSTIFIED, children: [new TextRun({ text: `[${i + 1}]\t${r}`, size: 22 })], tabStops: [{ type: TabStopType.LEFT, position: 600 }] }))];
   const appA = [
@@ -680,23 +701,72 @@ function report() {
       junit.cases.map((c, i) => [String(i + 1), c.file.replace("test_", ""), c.name.replace(/^test_/, "").replace(/_/g, " "), c.time.toFixed(2), c.status === "passed" ? "Pass" : c.status]),
       [500, 1700, 4506, 800, 800], { size: 16, align: [R, L, L, R, L] }),
   ];
-  // front matter lists need figures/tables collected first, so build body before contents
+  // contents pages list the headings, figures and tables collected above, so they are built last
+  const entries = marks;
+  marks = null;
   const doc = new Document({
     creator: S.name, title: S.title, description: `Project report, ${S.programme}, ${S.university}`,
     styles, numbering,
-    sections: [{
-      properties: { page: { size: A4, margin: { top: 1440, bottom: 1440, left: 2160, right: 1440 } } },
-      footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ children: [PageNumber.CURRENT], size: 20 })] })] }) },
-      children: [...front(), ...contents(), ...chapters, ...refs, ...appA, ...appB],
-    }],
+    sections: sectioned([...front(), ...contents(entries, pages), ...chapters, ...refs, ...appA, ...appB]),
   });
-  return doc;
+  return { doc, entries };
+}
+
+// Splits the body into portrait sections around landscape figure pages; page numbers run on.
+function sectioned(children) {
+  const footers = { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ children: [PageNumber.CURRENT], size: 20 })] })] }) };
+  const portrait = { page: { size: A4, margin: { top: 1440, bottom: 1440, left: 2160, right: 1440 } } };
+  // binding edge (left in portrait) is the top of a landscape page
+  const landscape = { page: { size: { ...A4, orientation: PageOrientation.LANDSCAPE }, margin: { top: 2160, bottom: 1440, left: 1440, right: 1440 } } };
+  const sections = [];
+  let current = [];
+  for (const c of children) {
+    if (c.landscape) {
+      sections.push({ properties: portrait, footers, children: current }, { properties: landscape, footers, children: c.landscape });
+      current = [];
+    } else current.push(c);
+  }
+  sections.push({ properties: portrait, footers, children: current });
+  return sections;
+}
+
+// Converts the report to PDF and finds the page of each heading and caption, searching in document order
+// after the front matter. Returns null when LibreOffice is unavailable.
+function locatePages(docxPath, entries) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "report-"));
+  try {
+    execFileSync("soffice", ["--headless", "--convert-to", "pdf", "--outdir", tmp, docxPath], { stdio: "ignore" });
+    const pdf = path.join(tmp, path.basename(docxPath).replace(/\.docx$/, ".pdf"));
+    const norm = (t) => t.replace(/[\s\u00a0]+/g, " ").trim().toUpperCase();
+    const text = execFileSync("pdftotext", [pdf, "-"], { encoding: "utf8", maxBuffer: 64 << 20 }).split("\f").map(norm);
+    let p = text.findIndex((t) => t.includes("LIST OF ABBREVIATIONS")) + 1;
+    return entries.map((e) => {
+      const key = norm(e.text).slice(0, 45);
+      while (p < text.length && !text[p].includes(key)) p += 1;
+      if (p >= text.length) throw new Error(`not found in PDF: ${e.text}`);
+      return p + 1;
+    });
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw err;
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 }
 
 (async () => {
   const syn = path.join(OUT, `${S.reg}.docx`);
   fs.writeFileSync(syn, await Packer.toBuffer(synopsis()));
   const rep = path.join(OUT, `Project_Report_${S.reg}.docx`);
-  fs.writeFileSync(rep, await Packer.toBuffer(report()));
+  // build, read back the page of every heading and caption, rebuild with those numbers until they are stable
+  let pages = null;
+  for (let pass = 0; pass < 4; pass += 1) {
+    const { doc, entries } = report(pages);
+    fs.writeFileSync(rep, await Packer.toBuffer(doc));
+    const found = locatePages(rep, entries);
+    if (!found) { console.warn("soffice not found: contents pages have no page numbers"); break; }
+    if (pages && found.join() === pages.join()) break;
+    pages = found;
+  }
   console.log(`abstract words: ${words}\nwrote ${syn}\nwrote ${rep}\nfigures ${figNo}, tables ${tabNo}`);
 })();

@@ -158,8 +158,8 @@ FONT = 'fontname="Liberation Serif"'
 
 def architecture():
     dot("architecture", f"""digraph G {{
-rankdir=LR; nodesep=0.3; ranksep=0.45; {FONT}; node [{FONT}, shape=box, style="rounded,filled", fillcolor="#f4f3ef", color="#52514e", fontsize=11];
-edge [{FONT}, fontsize=9, color="#52514e"];
+rankdir=TB; nodesep=0.25; ranksep=0.35; {FONT}; node [{FONT}, shape=box, style="rounded,filled", fillcolor="#f4f3ef", color="#52514e", fontsize=14];
+edge [{FONT}, fontsize=12, color="#52514e"];
 user [label="Client\\n(browser, notebook,\\nscript, other agent)", fillcolor="#ffffff"];
 subgraph cluster_api {{ label="FastAPI service (app/)"; labelloc="b"; style="rounded"; color="#2a78d6"; fontcolor="#2a78d6";
   agentapi [label="Agent API\\nGET /agent · POST /agent/chat", fillcolor="#fdeee7"];
@@ -249,7 +249,7 @@ def erd():
     arrow = {"1": "tee", "N": "crow"}
     edges = "\n".join(f'{a} -> {b} [arrowtail={arrow[ca]}, arrowhead={arrow[cb]}, dir=both, label="{lab}"];' for a, b, ca, cb, lab in rel)
     dot("erd", f"""digraph ERD {{
-rankdir=LR; nodesep=0.4; ranksep=0.7; {FONT}; node [{FONT}, shape=plaintext, fontsize=10]; edge [{FONT}, fontsize=8, color="#52514e", fontcolor="#52514e"];
+rankdir=TB; nodesep=0.25; ranksep=0.45; ratio=compress; size="10,15"; {FONT}; node [{FONT}, shape=plaintext, fontsize=14]; edge [{FONT}, fontsize=12, color="#52514e", fontcolor="#52514e"];
 {chr(10).join(ents)}
 {edges}
 }}""")
