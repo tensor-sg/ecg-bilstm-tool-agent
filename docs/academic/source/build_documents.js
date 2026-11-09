@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const {
   Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, AlignmentType, WidthType,
-  BorderStyle, ShadingType, LevelFormat, HeadingLevel, PageBreak, Footer, PageNumber, TabStopType, HighlightColor,
+  BorderStyle, ShadingType, LevelFormat, HeadingLevel, PageBreak, Footer, PageNumber, TabStopType,
 } = require("docx");
 
 const ROOT = process.argv[2];
@@ -21,6 +21,8 @@ const S = {
   reg: "25113170096",
   email: "priyatoshsatpatiofficial@gmail.com",
   guide: "Mr. G. Swaminathan",
+  rmSap: "C2385",
+  company: "SASTRA DEEMED TO BE UNIVERSITY, TIRUMALAISAMUDRAM, THANJAVUR – 613 401, TAMIL NADU, INDIA",
   programme: "Master of Science in Data Science",
   semester: "Fourth Semester",
   university: "SASTRA Deemed to be University",
@@ -143,15 +145,17 @@ function synopsis() {
   const children = [
     new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 240 }, children: [new TextRun({ text: S.title, bold: true, ...f14 })] }),
     line("Student Name", S.name.toUpperCase()),
-    line("Student Registration Number", S.reg, { after: 240 }),
-    line("Approved Guide Name", S.guide.toUpperCase(), { after: 240 }),
-    line("Name of the Company with address", "[COMPANY NAME AND ADDRESS IN CAPITAL LETTERS]", { highlight: HighlightColor.YELLOW, after: 240 }),
-    new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120, after: 240 }, children: [new TextRun({ text: "Abstract / Problem Statement", bold: true, ...f14 })] }),
+    line("Student Registration Number", S.reg, { after: 160 }),
+    line("Approved Guide Name", S.guide.toUpperCase(), { after: 160 }),
+    line("Name of the Company with address", S.company, { after: 120 }),
+    new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 60, after: 120 }, children: [new TextRun({ text: "Abstract / Problem Statement", bold: true, ...f14 })] }),
     ...ABSTRACT.map((t) => new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { line: 360, after: 0 }, children: [new TextRun({ text: t, font: FONT, size: 24 })] })),
-    new Paragraph({ spacing: { before: 480 }, tabStops: [{ type: TabStopType.RIGHT, position: 9026 }], children: [
+    new Paragraph({ spacing: { before: 360 }, tabStops: [{ type: TabStopType.RIGHT, position: 9026 }], children: [
       new TextRun({ text: "Signature of the Student", font: FONT, size: 24 }), new TextRun({ text: "\tSignature of the Reporting Manager", font: FONT, size: 24 })] }),
     new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: 9026 }], children: [
       new TextRun({ text: `(${S.name.toUpperCase()})`, font: FONT, size: 24 }), new TextRun({ text: `\t(${S.guide.toUpperCase()})`, font: FONT, size: 24 })] }),
+    new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: 9026 }], children: [
+      new TextRun({ text: `Reg. No. ${S.reg}`, font: FONT, size: 24 }), new TextRun({ text: `\tSAP ID: ${S.rmSap}`, font: FONT, size: 24 })] }),
   ];
   return new Document({
     creator: S.name, title: S.title, description: "Project synopsis", styles: { default: { document: { run: { font: FONT, size: 24 } } } },
@@ -186,9 +190,10 @@ function front() {
     new Paragraph({ spacing: { before: 1200 }, tabStops: [{ type: TabStopType.RIGHT, position: 8306 }], children: [new TextRun("Signature of the Guide"), new TextRun("\tDate:")] }),
     new Paragraph({ children: [new TextRun({ text: S.guide.toUpperCase(), bold: true })] }),
     new Paragraph({ children: [new TextRun("Project Guide and Reporting Manager")] }),
+    new Paragraph({ children: [new TextRun(`SAP ID: ${S.rmSap}`)] }),
 
     H1("DECLARATION"),
-    P(`I, **${S.name.toUpperCase()}** (Registration Number **${S.reg}**), declare that the project report titled **“${S.title}”** submitted to ${S.university} is a record of original work done by me under the guidance of ${S.guide}. The source code, experiments, results and text are my own work. All datasets, publications and software used are acknowledged and cited in the References. This report does not contain any confidential information or the name of any employer or customer, and it has not been submitted for the award of any other degree or diploma.`),
+    P(`I, **${S.name.toUpperCase()}** (Registration Number **${S.reg}**), declare that the project report titled **“${S.title}”** submitted to ${S.university} is a record of original work done by me under the guidance of ${S.guide}. The source code, experiments, results and text are my own work. All datasets, publications and software used are acknowledged and cited in the References. The project was carried out at ${S.university}. This report does not contain any confidential information or the name of any customer, and it has not been submitted for the award of any other degree or diploma.`),
     new Paragraph({ spacing: { before: 1200 }, tabStops: [{ type: TabStopType.RIGHT, position: 8306 }], children: [new TextRun("Place:"), new TextRun("\tSignature of the Student")] }),
     new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: 8306 }], children: [new TextRun("Date:"), new TextRun({ text: `\t${S.name.toUpperCase()}`, bold: true })] }),
     new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun(S.email)] }),
@@ -536,7 +541,7 @@ function body() {
     B("**Not a medical device.** Every analysis includes a disclaimer, and the agent is instructed to state that results are not a diagnosis."),
     B("**Data privacy.** The MIT-BIH recordings are de-identified and openly licensed. ECGs uploaded by users are not written to disk."),
     B("**Transparency.** Limitations, failure cases and rejected model versions are documented in the model card and in this report."),
-    B("**Confidentiality.** The project uses only public data and open-source software and contains no employer or customer information."),
+    B("**Confidentiality.** The project uses only public data and open-source software and contains no confidential or customer information."),
   );
 
   // ---------------------------------------------------------------- 10
