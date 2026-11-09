@@ -158,28 +158,30 @@ FONT = 'fontname="Liberation Serif"'
 
 def architecture():
     dot("architecture", f"""digraph G {{
-rankdir=LR; nodesep=0.35; ranksep=0.5; {FONT}; node [{FONT}, shape=box, style="rounded,filled", fillcolor="#f4f3ef", color="#52514e", fontsize=11];
+rankdir=LR; nodesep=0.3; ranksep=0.45; {FONT}; node [{FONT}, shape=box, style="rounded,filled", fillcolor="#f4f3ef", color="#52514e", fontsize=11];
 edge [{FONT}, fontsize=9, color="#52514e"];
-user [label="Client\\n(browser, notebook, curl)", shape=box, fillcolor="#ffffff"];
-subgraph cluster_api {{ label="FastAPI service (app/)"; style="rounded"; color="#2a78d6"; fontcolor="#2a78d6";
-  docs [label="/documents/*\\nupload · search · delete"];
-  ecg [label="/ecg/*\\nupload · upload-csv · analyze"];
-  chat [label="/chat\\nagent loop (agent.py)"];
-  ingest [label="ingest.py\\nextract + chunk"];
-  emb [label="embeddings.py\\nMiniLM (ONNX, local)"];
-  clf [label="ECGClassifier\\npreprocess → detect →\\nsegment → Conv-BiLSTM"];
-  reg [label="ECGRegistry\\n(in memory)"];
+user [label="Client\\n(browser, notebook,\\nscript, other agent)", fillcolor="#ffffff"];
+subgraph cluster_api {{ label="FastAPI service (app/)"; labelloc="b"; style="rounded"; color="#2a78d6"; fontcolor="#2a78d6";
+  agentapi [label="Agent API\\nGET /agent · POST /agent/chat", fillcolor="#fdeee7"];
+  toolapi [label="Tools API\\nGET /tools · POST /tools/{{name}}/invoke", fillcolor="#e8f6f0"];
+  data [label="/ecg/*  ·  /documents/*\\nupload, analyze, ingest, search"];
+  agent [label="Agent (agent.py)\\nloop · fallback · step trace", fillcolor="#fdeee7"];
+  tb [label="ToolBox (tools.py)\\nJSON schemas · validation", fillcolor="#e8f6f0"];
+  clf [label="analyze_ecg\\nECGClassifier → Conv-BiLSTM"];
+  kb [label="search_knowledge_base\\nMiniLM embeddings"];
+  reg [label="list_ecg_recordings\\nECG registry (memory)"];
 }}
-chroma [label="Chroma\\nPersistentClient\\n(chroma_db/ on disk)", shape=cylinder, fillcolor="#e8f0fb"];
-model [label="models/ecg_lstm.keras\\n+ meta.json", shape=note, fillcolor="#e8f6f0"];
-llm [label="LLM\\n(OpenAI-compatible,\\ntool calling)", fillcolor="#fdeee7"];
-user -> docs; user -> ecg; user -> chat;
-docs -> ingest -> emb -> chroma;
-ecg -> reg; ecg -> clf; clf -> model [style=dashed, label="loads"];
-chat -> llm [dir=both, label="messages /\\ntool calls"];
-chat -> chroma [label="search_knowledge_base"];
-chat -> clf [label="analyze_ecg"];
-chat -> reg [label="list_ecg_recordings"];
+openai [label="OpenAI gpt-4o-mini\\n(agentic core)", fillcolor="#fbdccf"];
+gemini [label="Gemini 2.5 Flash\\n(fallback)", fillcolor="#f4f3ef", style="rounded,filled,dashed"];
+chroma [label="Chroma\\n(chroma_db/ on disk)", shape=cylinder, fillcolor="#e8f0fb"];
+model [label="models/ecg_lstm.keras", shape=note, fillcolor="#e8f6f0"];
+user -> agentapi; user -> toolapi; user -> data;
+agentapi -> agent;
+agent -> openai [dir=both, label="messages,\\ntool calls"];
+agent -> gemini [dir=both, style=dashed, label="on error"];
+agent -> tb [label="run tool"]; toolapi -> tb [label="invoke"];
+tb -> clf; tb -> kb; tb -> reg;
+clf -> model [style=dashed, label="loads"]; kb -> chroma; data -> chroma; data -> reg;
 }}""")
 
 
@@ -254,13 +256,13 @@ def sequence():
 rankdir=TB; nodesep=0.3; ranksep=0.3; {FONT}; node [{FONT}, shape=box, style="rounded,filled", fillcolor="#f4f3ef", color="#52514e", fontsize=10, width=3.6];
 edge [{FONT}, fontsize=9, color="#52514e"];
 a [label="1. Client: POST /ecg/upload-csv → ecg_id", fillcolor="#e8f0fb"];
-b [label="2. Client: POST /chat {{message, ecg_id}}", fillcolor="#e8f0fb"];
-c [label="3. Agent sends system prompt, history, message + tool schemas to the LLM"];
-d [label="4. LLM returns tool calls, e.g. analyze_ecg(ecg_id),\\nsearch_knowledge_base(\\"premature ventricular contraction\\")", fillcolor="#fdeee7"];
-e [label="5. Agent executes tools: Conv-BiLSTM on the stored ECG;\\nChroma similarity search over embedded chunks", fillcolor="#e8f6f0"];
-f [label="6. Tool results (JSON) appended as tool messages; LLM called again"];
-g [label="7. LLM writes the answer grounded in tool output and cited sources", fillcolor="#fdeee7"];
-h [label="8. Response: answer, tool_calls trace, sources", fillcolor="#e8f0fb"];
+b [label="2. Client: POST /agent/chat {{message, ecg_id}}", fillcolor="#e8f0fb"];
+c [label="3. Agent sends system prompt, history, message + tool schemas\\nto OpenAI gpt-4o-mini (Gemini if OpenAI fails)"];
+d [label="4. OpenAI returns tool calls, e.g. analyze_ecg(ecg_id),\\nsearch_knowledge_base(\\"premature ventricular contraction\\")", fillcolor="#fdeee7"];
+e [label="5. ToolBox validates arguments and runs the tools: Conv-BiLSTM\\non the stored ECG; Chroma similarity search over embedded chunks", fillcolor="#e8f6f0"];
+f [label="6. Tool results (JSON) appended as tool messages; OpenAI called again"];
+g [label="7. OpenAI writes the answer grounded in tool output and cited sources", fillcolor="#fdeee7"];
+h [label="8. Response: answer, tool calls, sources, model used, step trace", fillcolor="#e8f0fb"];
 a -> b -> c -> d -> e -> f -> g -> h; f -> d [label=" more tool calls\\n (≤ 6 steps)", style=dashed, constraint=false];
 }}""")
 
