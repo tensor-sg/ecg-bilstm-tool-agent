@@ -15,6 +15,7 @@ from app.ecg.preprocessing import (
     detect_r_peaks,
     prepare_signal,
     segment_beats,
+    signal_quality,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,5 +84,6 @@ class ECGClassifier:
             "class_descriptions": {c: AAMI_DESCRIPTIONS[c] for c in self.classes},
             "abnormal_beats": abnormal[:50],
             "abnormal_beats_truncated": len(abnormal) > 50,
+            "signal_quality": signal_quality(clean),
             "disclaimer": "Automated research model output; not a medical diagnosis.",
         }

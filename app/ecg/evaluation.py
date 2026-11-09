@@ -89,6 +89,48 @@ def bootstrap_ci(record_cms: list[np.ndarray], classes: list[str], n_boot: int =
     }
 
 
+def probability_metrics(y_true: np.ndarray, proba: np.ndarray, classes: list[str], n_bins: int = 10) -> dict:
+    """Quality of the softmax outputs: one-vs-rest ROC AUC, Brier score, calibration (ECE) and
+    selective accuracy (accuracy on beats whose confidence clears a threshold)."""
+    from sklearn.metrics import roc_auc_score
+
+    conf, pred = proba.max(1), proba.argmax(1)
+    correct = pred == y_true
+    edges = np.linspace(0, 1, n_bins + 1)
+    bins, ece = [], 0.0
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        m = (conf > lo) & (conf <= hi)
+        if m.any():
+            ece += m.mean() * abs(correct[m].mean() - conf[m].mean())
+            bins.append({"lo": round(float(lo), 2), "hi": round(float(hi), 2), "n": int(m.sum()),
+                         "confidence": round(float(conf[m].mean()), 4), "accuracy": round(float(correct[m].mean()), 4)})
+    onehot = np.eye(len(classes))[y_true]
+    return {
+        "roc_auc": {c: round(float(roc_auc_score(onehot[:, i], proba[:, i])), 4) for i, c in enumerate(classes)},
+        "brier": round(float(((proba - onehot) ** 2).sum(1).mean()), 4),
+        "ece": round(float(ece), 4),
+        "mean_confidence": round(float(conf.mean()), 4),
+        "reliability": bins,
+        "selective": {
+            str(t): {"coverage": round(float((conf >= t).mean()), 4), "accuracy": round(float(correct[conf >= t].mean()), 4)}
+            for t in (0.5, 0.8, 0.9, 0.95)
+        },
+    }
+
+
+def collect_predictions(clf: ECGClassifier, data_dir: Path, records: list[str]) -> dict:
+    """Softmax outputs for every in-class beat at annotated peaks, with true labels and record ids."""
+    ys, ps, recs = [], [], []
+    for rec in records:
+        d = mitbih.record_beats(data_dir, rec)
+        keep, y = _labels_to_idx(d["labels"], clf.classes)
+        if keep.any():
+            ys.append(y)
+            ps.append(clf.predict_beats(d["beats"][keep], d["rr"][keep]))
+            recs.append(np.full(len(y), rec))
+    return {"y_true": np.concatenate(ys), "proba": np.concatenate(ps), "record": np.concatenate(recs)}
+
+
 def _labels_to_idx(labels: np.ndarray, classes: list[str]) -> tuple[np.ndarray, np.ndarray]:
     keep = np.isin(labels, classes)
     return keep, np.array([classes.index(c) for c in labels[keep]], dtype=int)

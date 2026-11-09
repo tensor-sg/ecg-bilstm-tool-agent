@@ -15,6 +15,7 @@ from app.ecg.preprocessing import (
     prepare_signal,
     resample,
     segment_beats,
+    signal_quality,
 )
 from tests.conftest import synthetic_ecg
 
@@ -121,3 +122,27 @@ def test_segment_beats_skips_edges():
 def test_segment_beats_empty():
     beats, kept = segment_beats(np.zeros(100, dtype=np.float32), np.array([50]))
     assert beats.shape == (0, BEAT_LEN) and len(kept) == 0
+
+
+# ---------------------------------------------------------------- signal quality
+def test_signal_quality_accepts_synthetic_ecg():
+    sig, _ = synthetic_ecg(seconds=30)
+    q = signal_quality(prepare_signal(sig, TARGET_FS))
+    assert q["ok"] and q["warning"] is None and q["median_kurtosis"] > 3
+
+
+@pytest.mark.parametrize("kind", ["gaussian", "sine", "flat"])
+def test_signal_quality_rejects_non_ecg(kind):
+    t = np.arange(TARGET_FS * 30) / TARGET_FS
+    sig = {"gaussian": np.random.default_rng(0).normal(0, 0.05, len(t)),
+           "sine": np.sin(2 * np.pi * 1.2 * t),
+           "flat": np.zeros(len(t))}[kind]
+    q = signal_quality(prepare_signal(sig, TARGET_FS))
+    assert not q["ok"] and q["low_quality_fraction"] == 1.0 and q["warning"]
+
+
+def test_signal_quality_is_scale_invariant():
+    sig, _ = synthetic_ecg(seconds=30)
+    a = signal_quality(prepare_signal(sig, TARGET_FS))
+    b = signal_quality(prepare_signal(sig * 1000, TARGET_FS))
+    assert a["median_kurtosis"] == pytest.approx(b["median_kurtosis"], rel=1e-3)

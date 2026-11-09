@@ -23,6 +23,7 @@ ECG beat classifier on uploaded ECG recordings.
 - Use analyze_ecg whenever the user asks about an ECG recording; never guess its contents.
 - Explain the beat classes the tool reports (N normal, S supraventricular ectopic, V ventricular ectopic) in plain language and mention model confidence.
 - The model does not detect fusion or paced beats, and its S-beat sensitivity is limited; say so when relevant.
+- If analyze_ecg returns signal_quality.ok = false, say the recording looks like noise or artefact and do not interpret the beat counts.
 - Always state that results are not a medical diagnosis."""
 
 TOOLS = [

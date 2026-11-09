@@ -1,0 +1,169 @@
+{
+  "generated_at": "2026-11-09 08:46",
+  "hardware": {
+    "cpu": "Intel(R) Core(TM) i5-7200U CPU @ 2.50GHz",
+    "logical_cores": 4,
+    "ram_gb": 16.7,
+    "gpu": false,
+    "python": "3.12.3",
+    "tensorflow": "2.21.0"
+  },
+  "model": {
+    "params": 49571,
+    "file_mb": 0.71
+  },
+  "speed": {
+    "predict_beats": {
+      "1": {
+        "latency_ms": 78.01,
+        "ms_per_beat": 78.006,
+        "beats_per_s": 13
+      },
+      "64": {
+        "latency_ms": 88.95,
+        "ms_per_beat": 1.39,
+        "beats_per_s": 719
+      },
+      "512": {
+        "latency_ms": 283.92,
+        "ms_per_beat": 0.555,
+        "beats_per_s": 1803
+      },
+      "2048": {
+        "latency_ms": 915.66,
+        "ms_per_beat": 0.447,
+        "beats_per_s": 2237
+      }
+    },
+    "analyze_full_record": {
+      "record": "100",
+      "signal_s": 1805.6,
+      "wall_s": 1.31,
+      "faster_than_real_time": 1373,
+      "process_rss_mb": 796
+    }
+  },
+  "api": {
+    "1_min_strip": {
+      "median_ms": 160,
+      "max_ms": 169
+    },
+    "5_min_strip": {
+      "median_ms": 454,
+      "max_ms": 463
+    }
+  },
+  "n_beats": 49297,
+  "probability": {
+    "roc_auc": {
+      "N": 0.9257,
+      "S": 0.7638,
+      "V": 0.9836
+    },
+    "brier": 0.0924,
+    "ece": 0.0126,
+    "mean_confidence": 0.9579,
+    "reliability": [
+      {
+        "lo": 0.3,
+        "hi": 0.4,
+        "n": 37,
+        "confidence": 0.3811,
+        "accuracy": 0.4054
+      },
+      {
+        "lo": 0.4,
+        "hi": 0.5,
+        "n": 174,
+        "confidence": 0.4653,
+        "accuracy": 0.3333
+      },
+      {
+        "lo": 0.5,
+        "hi": 0.6,
+        "n": 574,
+        "confidence": 0.5492,
+        "accuracy": 0.4704
+      },
+      {
+        "lo": 0.6,
+        "hi": 0.7,
+        "n": 611,
+        "confidence": 0.6532,
+        "accuracy": 0.5957
+      },
+      {
+        "lo": 0.7,
+        "hi": 0.8,
+        "n": 852,
+        "confidence": 0.7547,
+        "accuracy": 0.7289
+      },
+      {
+        "lo": 0.8,
+        "hi": 0.9,
+        "n": 1955,
+        "confidence": 0.8605,
+        "accuracy": 0.8532
+      },
+      {
+        "lo": 0.9,
+        "hi": 1.0,
+        "n": 45094,
+        "confidence": 0.9777,
+        "accuracy": 0.967
+      }
+    ],
+    "selective": {
+      "0.5": {
+        "coverage": 0.9957,
+        "accuracy": 0.9479
+      },
+      "0.8": {
+        "coverage": 0.9544,
+        "accuracy": 0.9623
+      },
+      "0.9": {
+        "coverage": 0.9147,
+        "accuracy": 0.967
+      },
+      "0.95": {
+        "coverage": 0.837,
+        "accuracy": 0.9733
+      }
+    }
+  },
+  "errors": {
+    "S_beats_in_232": 1382,
+    "S_beats_total": 1837,
+    "without_record_232": {
+      "accuracy": 0.9724,
+      "macro_f1": 0.7397,
+      "S": {
+        "support": 455,
+        "sensitivity": 0.3824,
+        "ppv": 0.3588,
+        "specificity": 0.9934,
+        "f1": 0.3702
+      },
+      "V": {
+        "support": 3220,
+        "sensitivity": 0.8022,
+        "ppv": 0.9328,
+        "specificity": 0.9958,
+        "f1": 0.8626
+      }
+    },
+    "normal_called_V_rate": 0.0033,
+    "V_sensitivity_per_record": {
+      "200": 0.811,
+      "210": 0.754,
+      "213": 0.468,
+      "214": 0.805,
+      "219": 0.938,
+      "221": 0.997,
+      "228": 0.417,
+      "233": 0.988
+    }
+  }
+}

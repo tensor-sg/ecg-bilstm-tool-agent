@@ -121,6 +121,19 @@ def test_robust_to_moderate_noise(trained_classifier):
     assert abs(a["heart_rate_bpm"] - b["heart_rate_bpm"]) <= 2
 
 
+def test_all_test_patients_pass_signal_quality():
+    """The quality warning must not fire on real (non-paced) recordings: all 22 DS2 records pass."""
+    from app.ecg.preprocessing import prepare_signal, signal_quality
+
+    flagged = {}
+    for rec in mitbih.DS2:
+        sig, _, _, fs = mitbih.load_record(DATA_DIR, rec)
+        q = signal_quality(prepare_signal(sig, fs))
+        if not q["ok"]:
+            flagged[rec] = q
+    assert not flagged, flagged
+
+
 def test_short_and_flat_inputs_do_not_crash(trained_classifier):
     assert trained_classifier.analyze(np.zeros(3600, dtype=np.float32), 360)["n_beats_classified"] >= 0
     sig, _, _, fs = strip("100", seconds=3)
