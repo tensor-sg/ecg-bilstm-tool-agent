@@ -1,0 +1,7 @@
+{
+  "name": "academic-documents",
+  "private": true,
+  "description": "Builds the synopsis and project report (.docx) from the committed results",
+  "scripts": { "build": "node build_documents.js ../../.." },
+  "dependencies": { "docx": "9.5.1" }
+}

@@ -1,5 +1,8 @@
 # ECG RAG + LSTM Agent
 
+**Author:** Priyatosh Satpati (Reg. No. 25113170096) · priyatoshsatpatiofficial@gmail.com
+M.Sc. Data Science, 4th semester project, SASTRA Deemed to be University · Guide: Mr. G. Swaminathan
+
 A FastAPI service that combines:
 
 - **RAG over a persistent local Chroma vector store**: upload PDFs, text or markdown, then run semantic search
@@ -28,6 +31,15 @@ A FastAPI service that combines:
 End to end through the API's own beat detector: detection sensitivity 0.979, PPV 0.998, accuracy 0.942.
 The model is reliable for normal and ventricular beats but **misses most supraventricular beats**.
 Details, confidence intervals and limitations: [docs/MODEL_CARD.md](docs/MODEL_CARD.md) and [reports/evaluation.md](reports/evaluation.md).
+Speed, calibration (ECE 0.013) and error analysis: [reports/performance.md](reports/performance.md). Test results: [reports/test_report.md](reports/test_report.md).
+
+## Academic documents
+
+| File | What it is |
+|---|---|
+| [docs/academic/25113170096.pdf](docs/academic/25113170096.pdf) (+ `.docx`) | Project synopsis in the SASTRA template (≤ 300 words) |
+| [docs/academic/Project_Report_25113170096.pdf](docs/academic/Project_Report_25113170096.pdf) (+ `.docx`) | Full project report: literature review, methodology, system design and ERD, testing, results, references |
+| [docs/figures/](docs/figures/) | Figures and diagrams (architecture, model, ERD, request flow, results), made by `scripts/make_figures.py` |
 
 > **Not a medical device.** The model is a research tool. Read [docs/MODEL_CARD.md](docs/MODEL_CARD.md) for what it can and cannot do.
 
@@ -52,12 +64,18 @@ notebooks/
   01_ecg_analysis.ipynb       exploratory ECG analysis
   02_lstm_training.ipynb      train, validate and test the LSTM, save to models/
   03_lstm_as_llm_tool.ipynb   use the LSTM as an LLM tool, with and without RAG
-scripts/evaluate_model.py     full held-out evaluation, writes reports/evaluation.md
-reports/                      committed evaluation results
+scripts/
+  evaluate_model.py           held-out accuracy evaluation -> reports/evaluation.md
+  benchmark_model.py          speed, memory, calibration, error analysis -> reports/performance.md
+  test_report.py              runs the whole suite -> reports/test_report.md
+  make_figures.py             report figures and diagrams -> docs/figures/
+reports/                      committed evaluation, performance and test results
 tests/                        pytest suite (unit, API, vector store, model)
 docs/
   MODEL_CARD.md               model details, validation protocol, results, limitations
   ecg_reference.md            seed document for the knowledge base
+  academic/                   synopsis and project report (.docx and .pdf) and their generator
+  figures/                    figures and diagrams used in the report
 ```
 
 ## Setup
@@ -119,9 +137,11 @@ The report covers:
 ## Test
 
 ```bash
-pytest                      # everything; model tests are skipped if models/ or data/ are missing
+pytest                      # all 95 tests (~2.5 min); model tests are skipped if models/ or data/ are missing
 pytest -m "not model"       # fast unit/API tests only (~10 s, no trained model or data needed)
-pytest -m model             # tests against the trained model on held-out patients (~1.5 min)
+pytest -m model             # trained model on held-out patients: accuracy, performance, integration
+pytest -m integration       # real app: lifespan, trained model, Chroma on disk, local embeddings
+python scripts/test_report.py   # run everything and write reports/test_report.md
 ```
 
 | File | Covers |
@@ -131,10 +151,12 @@ pytest -m model             # tests against the trained model on held-out patien
 | `test_vector_store.py` | real Chroma on a temp dir: ranking, persistence across restarts, upsert de-duplication, source filter, delete, embedding-model mismatch guard |
 | `test_agent.py` | tool-calling loop with a scripted LLM: tool dispatch, tool results fed back, sources, bad arguments, unknown tools, missing model, step limit |
 | `test_api.py` | every endpoint, validation errors (422/400/404/503), chat with tool calls |
-| `test_model.py` | trained model on DS2 patients: metadata and patient-leakage checks, determinism, API path matches training path, invariance to gain/offset, robustness to 250 Hz input and 25 dB noise, accuracy regression floors, beats the baselines, end-to-end detection |
+| `test_model.py` | trained model on DS2 patients: metadata and patient-leakage checks, determinism, API path matches training path, invariance to gain/offset, robustness to 250 Hz input and 25 dB noise, signal quality on real records, accuracy regression floors, beats the baselines, end-to-end detection |
+| `test_model_performance.py` | model size, batched throughput, 30-min record in < 30 s, batch-size invariance, no memory leak, calibration (ECE, Brier), ROC AUC per class, selective accuracy, false V alarms, V specificity, S detection outside record 232, per-patient V sensitivity, bootstrap CI and paired bootstrap vs the RR baseline |
+| `test_api_integration.py` | the real app with its lifespan: model loaded, ingest and semantic search with real embeddings, persistence across restart, 250 Hz CSV of a held-out patient vs cardiologist labels, supplied R-peaks, response contract, latency, noise flagged by signal quality, agent tool calls on real services |
 
 The suite was mutation-checked: deliberately injected bugs (swapped RR features, a wrong similarity score,
-a dropped tool result) each make tests fail.
+a dropped tool result, RR features ignored or zeroed, the signal-quality check disabled) each make tests fail.
 
 ## Run the API
 
@@ -182,9 +204,15 @@ curl -X POST localhost:8000/chat -H 'Content-Type: application/json' \
 | POST | `/chat` | agent with RAG and ECG tools (`message`, optional `ecg_id` and `history`) |
 
 The `analyze` response contains heart rate, RR variability (SDNN), per-class beat counts and percentages,
-and up to 50 abnormal beats with timestamps and confidence.
+up to 50 abnormal beats with timestamps and confidence, and a `signal_quality` block. A kurtosis-based index flags
+input that does not look like an ECG (noise, artefact, no QRS complexes); the agent is told not to interpret such results.
 
 ## Notes
 
 - Uploaded ECGs are kept in memory and are lost on restart. Use Redis or a database for persistence.
 - Re-uploading a document with the same name replaces its chunks.
+
+## Citation
+
+If you use this project, please cite it as described in [CITATION.cff](CITATION.cff), and cite the MIT-BIH
+Arrhythmia Database (Moody & Mark, 2001) and PhysioNet (Goldberger et al., 2000).

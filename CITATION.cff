@@ -1,0 +1,55 @@
+cff-version: 1.2.0
+message: "If you use this project, please cite it as below."
+title: "ECG Arrhythmia Beat Classification Using a Convolutional Bidirectional LSTM Deployed as a Tool for a Retrieval-Augmented LLM Agent"
+type: software
+authors:
+  - family-names: Satpati
+    given-names: Priyatosh
+    email: priyatoshsatpatiofficial@gmail.com
+    affiliation: "SASTRA Deemed to be University (M.Sc. Data Science, Reg. No. 25113170096)"
+date-released: 2026-11-09
+keywords:
+  - ECG
+  - arrhythmia
+  - LSTM
+  - MIT-BIH
+  - retrieval-augmented generation
+  - LLM agent
+references:
+  - type: article
+    title: "The impact of the MIT-BIH Arrhythmia Database"
+    authors:
+      - family-names: Moody
+        given-names: George B.
+      - family-names: Mark
+        given-names: Roger G.
+    journal: "IEEE Engineering in Medicine and Biology Magazine"
+    volume: 20
+    issue: 3
+    start: 45
+    end: 50
+    year: 2001
+  - type: article
+    title: "PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals"
+    authors:
+      - family-names: Goldberger
+        given-names: Ary L.
+    journal: "Circulation"
+    volume: 101
+    issue: 23
+    year: 2000
+  - type: article
+    title: "Automatic classification of heartbeats using ECG morphology and heartbeat interval features"
+    authors:
+      - family-names: de Chazal
+        given-names: Philip
+      - family-names: O'Dwyer
+        given-names: Maria
+      - family-names: Reilly
+        given-names: Richard B.
+    journal: "IEEE Transactions on Biomedical Engineering"
+    volume: 51
+    issue: 7
+    start: 1196
+    end: 1206
+    year: 2004
