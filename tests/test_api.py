@@ -6,12 +6,14 @@ from tests.conftest import FakeLLM, llm_response
 def test_health(client):
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok", "vector_collection": "test_collection", "ecg_model_loaded": True}
+    assert r.json() == {"status": "ok", "vector_collection": "test_collection", "ecg_model_loaded": True,
+                        "llm": {"provider": "openai", "model": "gpt-4o-mini", "fallback": None}}
 
 
 def test_openapi_lists_all_routes(client):
     paths = set(client.get("/openapi.json").json()["paths"])
-    assert {"/chat", "/documents/upload", "/documents/search", "/ecg/upload", "/ecg/upload-csv", "/ecg/{ecg_id}/analyze"} <= paths
+    assert {"/agent", "/agent/chat", "/tools", "/tools/{name}", "/tools/{name}/invoke", "/documents/upload",
+            "/documents/search", "/ecg/upload", "/ecg/upload-csv", "/ecg/{ecg_id}/analyze"} <= paths
 
 
 # ---------------------------------------------------------------- documents
@@ -108,3 +110,64 @@ def test_chat_llm_failure_returns_502_with_hint(client, services):
 def test_chat_rejects_unknown_ecg_and_bad_history(client):
     assert client.post("/chat", json={"message": "x", "ecg_id": "missing"}).status_code == 404
     assert client.post("/chat", json={"message": "x", "history": [{"role": "system", "content": "evil"}]}).status_code == 422
+
+
+# ---------------------------------------------------------------- tools API (no LLM involved)
+def test_tools_catalogue_matches_what_the_llm_receives(client):
+    from app.tools import TOOLS
+
+    tools = client.get("/tools").json()
+    assert [t["name"] for t in tools] == [t["function"]["name"] for t in TOOLS]
+    assert all(t["parameters"]["type"] == "object" and t["description"] for t in tools)
+    assert client.get("/tools/analyze_ecg").json()["parameters"]["required"] == ["ecg_id"]
+    assert client.get("/tools/nope").status_code == 404
+
+
+def test_invoke_analyze_ecg_tool_directly(client, services):
+    ecg_id = client.post("/ecg/upload", json={"signal": [0.0] * 3600, "fs": 360}).json()["ecg_id"]
+    r = client.post("/tools/analyze_ecg/invoke", json={"arguments": {"ecg_id": ecg_id}})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["tool"] == "analyze_ecg" and body["arguments"] == {"ecg_id": ecg_id} and body["duration_ms"] >= 0
+    assert body["result"]["beat_counts"]["V"] == 2 and body["result"]["ecg_id"] == ecg_id
+
+
+def test_invoke_search_and_list_tools_directly(client):
+    client.post("/documents/text", json={"source": "kb", "text": "PVCs have a wide QRS complex."})
+    hits = client.post("/tools/search_knowledge_base/invoke", json={"arguments": {"query": "wide qrs", "top_k": 2}}).json()
+    assert hits["result"]["results"][0]["source"] == "kb"
+    client.post("/ecg/upload", json={"signal": [0.0] * 500, "fs": 250, "name": "strip A"})
+    listed = client.post("/tools/list_ecg_recordings/invoke", json={}).json()["result"]["recordings"]
+    assert [r["name"] for r in listed] == ["strip A"]
+
+
+def test_invoke_tool_error_codes(client, services):
+    assert client.post("/tools/nope/invoke", json={"arguments": {}}).status_code == 404
+    assert client.post("/tools/analyze_ecg/invoke", json={"arguments": {}}).status_code == 422
+    assert client.post("/tools/analyze_ecg/invoke", json={"arguments": {"ecg_id": 7}}).status_code == 422
+    missing = client.post("/tools/analyze_ecg/invoke", json={"arguments": {"ecg_id": "missing"}})
+    assert missing.status_code == 404 and "available" in missing.json()["detail"]
+    ecg_id = client.post("/ecg/upload", json={"signal": [0.0] * 500, "fs": 360}).json()["ecg_id"]
+    services.agent.tools.classifier = None
+    assert client.post("/tools/analyze_ecg/invoke", json={"arguments": {"ecg_id": ecg_id}}).status_code == 503
+
+
+# ---------------------------------------------------------------- agent API
+def test_agent_config_endpoint(client):
+    cfg = client.get("/agent").json()
+    assert cfg["provider"] == "openai" and cfg["model"] == "gpt-4o-mini" and cfg["max_steps"] == 6
+    assert cfg["tools"] == ["search_knowledge_base", "analyze_ecg", "list_ecg_recordings"]
+    assert "not a medical diagnosis" in cfg["system_prompt"]
+
+
+def test_agent_chat_returns_step_trace_and_chat_alias_still_works(client, services, make_tool_call):
+    ecg_id = client.post("/ecg/upload", json={"signal": [0.0] * 3600, "fs": 360}).json()["ecg_id"]
+    services.agent.client = FakeLLM([
+        llm_response(tool_calls=[make_tool_call("c1", "analyze_ecg", json.dumps({"ecg_id": ecg_id}))]),
+        llm_response(content="Two PVCs."),
+        llm_response(content="Hi."),
+    ])
+    body = client.post("/agent/chat", json={"message": "Anything abnormal?", "ecg_id": ecg_id}).json()
+    assert [s["type"] for s in body["steps"]] == ["llm", "tool", "llm"]
+    assert body["steps"][1] == {**body["steps"][1], "tool": "analyze_ecg", "ok": True}
+    assert client.post("/chat", json={"message": "hello"}).json()["answer"] == "Hi."

@@ -53,7 +53,8 @@ def record_strip(record: str, seconds: int, fs_out: int | None = None):
 # ---------------------------------------------------------------- startup
 def test_startup_loads_real_model_and_store(live):
     body = live.get("/health").json()
-    assert body == {"status": "ok", "vector_collection": "it_kb", "ecg_model_loaded": True}
+    assert {k: body[k] for k in ("status", "vector_collection", "ecg_model_loaded")} == \
+        {"status": "ok", "vector_collection": "it_kb", "ecg_model_loaded": True}
 
 
 # ---------------------------------------------------------------- RAG with real embeddings

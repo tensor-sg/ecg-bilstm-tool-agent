@@ -51,3 +51,32 @@ class ChatResponse(BaseModel):
     answer: str | None
     tool_calls: list[dict]
     sources: list[dict]
+    llm: dict | None = Field(None, description="Provider and model that produced the answer, and whether the fallback was used.")
+    steps: list[dict] = Field([], description="Trace of the agent loop: each LLM decision and each tool execution, with timings.")
+
+
+class ToolInfo(BaseModel):
+    name: str
+    description: str
+    parameters: dict = Field(..., description="JSON schema of the arguments (the same schema the LLM receives).")
+
+
+class ToolInvokeRequest(BaseModel):
+    arguments: dict = Field(default_factory=dict, examples=[{"ecg_id": "3f2a9c1b7d4e"}])
+
+
+class ToolInvokeResponse(BaseModel):
+    tool: str
+    arguments: dict
+    result: dict
+    duration_ms: float
+
+
+class AgentConfig(BaseModel):
+    provider: str
+    model: str
+    fallback: str | None
+    temperature: float | None
+    max_steps: int
+    tools: list[str]
+    system_prompt: str

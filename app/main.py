@@ -8,7 +8,7 @@ from app.config import get_settings
 from app.deps import AppState
 from app.ecg.classifier import ECGClassifier
 from app.embeddings import Embedder
-from app.routers import chat, documents, ecg
+from app.routers import agent, documents, ecg, tools
 from app.vector_store import VectorStore
 
 settings = get_settings()
@@ -35,16 +35,30 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="ECG RAG + LSTM Agent", version="0.1.0", lifespan=lifespan)
+DESCRIPTION = """
+An OpenAI LLM is the agentic core; the trained ECG LSTM and the Chroma knowledge base are its tools.
+
+* **/agent** – the agent: chat, with a trace of every LLM decision and tool call
+* **/tools** – the same tools as plain REST endpoints, callable without an LLM
+* **/ecg**, **/documents** – upload ECG recordings and reference documents
+"""
+app = FastAPI(title="ECG RAG + LSTM Agent", version="0.2.0", description=DESCRIPTION, lifespan=lifespan,
+              openapi_tags=[{"name": "agent", "description": "LLM agent (OpenAI main, Gemini fallback)"},
+                            {"name": "tools", "description": "Tools the agent can call, exposed directly"},
+                            {"name": "ecg", "description": "ECG upload and direct analysis"},
+                            {"name": "documents", "description": "Knowledge base (RAG) management"},
+                            {"name": "health", "description": "Service status"}])
 app.include_router(documents.router)
 app.include_router(ecg.router)
-app.include_router(chat.router)
+app.include_router(tools.router)
+app.include_router(agent.router)
 
 
 @app.get("/health", tags=["health"])
 async def health():
     s: AppState = app.state.services
-    return {"status": "ok", "vector_collection": s.store.collection, "ecg_model_loaded": s.classifier is not None}
+    return {"status": "ok", "vector_collection": s.store.collection, "ecg_model_loaded": s.classifier is not None,
+            "llm": s.agent.describe()}
 
 
 if __name__ == "__main__":

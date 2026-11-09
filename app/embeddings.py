@@ -17,9 +17,10 @@ class Embedder:
         elif self.provider == "openai":
             from openai import OpenAI
 
-            if not settings.embedding_api_key:
-                raise ValueError("EMBEDDING_API_KEY is required when EMBEDDING_PROVIDER=openai")
-            self.client = OpenAI(api_key=settings.embedding_api_key, base_url=settings.embedding_base_url)
+            api_key = settings.embedding_api_key or settings.openai_api_key
+            if not api_key:
+                raise ValueError("EMBEDDING_API_KEY or OPENAI_API_KEY is required when EMBEDDING_PROVIDER=openai")
+            self.client = OpenAI(api_key=api_key, base_url=settings.embedding_base_url)
             self.model = settings.embedding_model
             self.name = f"openai:{self.model}"
         else:

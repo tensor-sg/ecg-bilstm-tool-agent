@@ -1,7 +1,8 @@
 """Run the full pytest suite and write reports/test_report.md (plus reports/junit.xml).
 
 Usage:
-    python scripts/test_report.py
+    python scripts/test_report.py                   # offline, model and integration tests
+    RUN_LLM_TESTS=1 python scripts/test_report.py   # also the live LLM tests (uses API credit)
 """
 
 from __future__ import annotations
@@ -20,11 +21,12 @@ SUITES = {
     "test_preprocessing": "Unit: signal processing, R-peak detection, RR features, signal quality",
     "test_ingest": "Unit: document text extraction and chunking",
     "test_vector_store": "Component: persistent Chroma store on disk",
-    "test_agent": "Unit: LLM tool-calling loop (scripted LLM)",
-    "test_api": "API: every endpoint with fakes, validation and error codes",
+    "test_agent": "Unit: agent loop, tool validation, providers and fallback (scripted LLM)",
+    "test_api": "API: agent, tools, ECG and document endpoints with fakes; error codes",
     "test_model": "Model: correctness, robustness and accuracy floors on held-out patients",
     "test_model_performance": "Model performance: speed, memory, calibration, AUC, error rates, significance",
     "test_api_integration": "Integration: real app, trained model, Chroma and local embeddings",
+    "test_llm_live": "Live: real OpenAI agent (Gemini fallback) calling the LSTM and RAG tools",
 }
 
 
@@ -65,6 +67,8 @@ wall time {wall:.0f} s · **{totals['passed']} passed, {totals['failed']} failed
 
 Model and integration tests use only the 22 held-out DS2 patients. Measured values behind the
 thresholds are in `reports/evaluation.md` (accuracy) and `reports/performance.md` (speed, calibration).
+Live LLM tests call the real OpenAI (gpt-4o-mini) and Gemini (gemini-2.5-flash) APIs; their assertions check
+tool calls, cited sources and numbers, not wording.
 
 ## Test cases
 {''.join(details)}

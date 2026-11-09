@@ -1,17 +1,21 @@
-"""Tool-calling agent: the LLM can search the Chroma knowledge base (RAG) and run the ECG LSTM model as tools."""
+"""Agentic core: an OpenAI-compatible LLM that decides which tools to call (app/tools.py) and writes the answer.
+
+Flow of one request: system prompt + history + question -> LLM -> tool calls -> tool results -> LLM -> ...
+-> final answer. Every step is recorded in a trace returned to the client.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
-import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+import time
 
+import openai
 from openai import OpenAI
 
-from app.config import Settings
+from app.config import LLMEndpoint, Settings
 from app.ecg.classifier import ECGClassifier
+from app.tools import TOOLS, ECGRecording, ECGRegistry, ToolBox  # noqa: F401  (re-exported)
 from app.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
@@ -26,120 +30,52 @@ ECG beat classifier on uploaded ECG recordings.
 - If analyze_ecg returns signal_quality.ok = false, say the recording looks like noise or artefact and do not interpret the beat counts.
 - Always state that results are not a medical diagnosis."""
 
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "search_knowledge_base",
-            "description": "Semantic search over the uploaded document knowledge base.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Natural-language search query."},
-                    "top_k": {"type": "integer", "description": "Number of chunks to return (1-10).", "default": 5},
-                },
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "analyze_ecg",
-            "description": (
-                "Run the trained LSTM classifier on an uploaded single-lead ECG recording. "
-                "Returns heart rate, RR variability, per-class beat counts (AAMI N/S/V) and abnormal beat times."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {"ecg_id": {"type": "string", "description": "Id returned by POST /ecg/upload."}},
-                "required": ["ecg_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "list_ecg_recordings",
-            "description": "List the ECG recordings currently available for analysis.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-]
-
-
-@dataclass
-class ECGRecording:
-    id: str
-    signal: list[float]
-    fs: float
-    name: str | None = None
-    r_peaks: list[int] | None = None
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-
-class ECGRegistry:
-    """In-memory store of uploaded ECG strips (swap for Redis/DB in production)."""
-
-    def __init__(self) -> None:
-        self._items: dict[str, ECGRecording] = {}
-
-    def add(self, signal: list[float], fs: float, name: str | None = None, r_peaks: list[int] | None = None) -> ECGRecording:
-        rec = ECGRecording(id=uuid.uuid4().hex[:12], signal=signal, fs=fs, name=name, r_peaks=r_peaks)
-        self._items[rec.id] = rec
-        return rec
-
-    def get(self, ecg_id: str) -> ECGRecording | None:
-        return self._items.get(ecg_id)
-
-    def list(self) -> list[dict]:
-        return [
-            {"ecg_id": r.id, "name": r.name, "fs": r.fs, "duration_s": round(len(r.signal) / r.fs, 2), "created_at": r.created_at}
-            for r in self._items.values()
-        ]
+MAX_STEPS = 6
 
 
 class Agent:
     def __init__(self, settings: Settings, store: VectorStore, registry: ECGRegistry, classifier: ECGClassifier | None):
-        self.client = OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url)
-        self.model = settings.llm_model
-        self.store = store
-        self.registry = registry
-        self.classifier = classifier
-        self.default_top_k = settings.top_k
-
-    # ---------- tools ----------
-    def _search_knowledge_base(self, query: str, top_k: int | None = None) -> dict:
-        k = max(1, min(int(top_k or self.default_top_k), 10))
-        return {"results": self.store.search(query, top_k=k)}
-
-    def _analyze_ecg(self, ecg_id: str) -> dict:
-        if self.classifier is None:
-            return {"error": "ECG model is not loaded. Train it with notebooks/02_lstm_training.ipynb."}
-        rec = self.registry.get(ecg_id)
-        if rec is None:
-            return {"error": f"Unknown ecg_id '{ecg_id}'.", "available": self.registry.list()}
-        return {"ecg_id": ecg_id, "name": rec.name, **self.classifier.analyze(rec.signal, rec.fs, rec.r_peaks)}
-
-    def _list_ecg_recordings(self) -> dict:
-        return {"recordings": self.registry.list()}
+        main = settings.llm_endpoint()
+        self.client, self.model, self.provider = _client(main), main.model, main.provider
+        fallback = settings.llm_fallback_endpoint()
+        self.fallback = (_client(fallback), fallback.model, fallback.provider) if fallback else None
+        self.temperature = settings.llm_temperature
+        self.tools = ToolBox(store, registry, classifier, settings.top_k)
 
     def run_tool(self, name: str, args: dict) -> dict:
-        handlers = {
-            "search_knowledge_base": self._search_knowledge_base,
-            "analyze_ecg": self._analyze_ecg,
-            "list_ecg_recordings": self._list_ecg_recordings,
-        }
-        if name not in handlers:
-            return {"error": f"Unknown tool {name}"}
-        try:
-            return handlers[name](**args)
-        except Exception as exc:  # surface tool failures to the model instead of crashing the request
-            logger.exception("Tool %s failed", name)
-            return {"error": str(exc)}
+        return self.tools.run(name, args)
+
+    # ---------- LLM ----------
+    def describe(self) -> dict:
+        return {"provider": self.provider, "model": self.model,
+                "fallback": f"{self.fallback[2]}:{self.fallback[1]}" if self.fallback else None}
+
+    def config(self) -> dict:
+        return {**self.describe(), "temperature": self.temperature, "max_steps": MAX_STEPS,
+                "tools": [t["function"]["name"] for t in TOOLS], "system_prompt": SYSTEM_PROMPT}
+
+    def _complete(self, messages: list[dict], used: dict):
+        """One chat-completions call; on a provider error (auth, quota, outage) retry once on the fallback."""
+        kwargs = {"messages": messages, "tools": TOOLS, "tool_choice": "auto"}
+        if self.temperature is not None:
+            kwargs["temperature"] = self.temperature
+        targets = [(self.client, self.model, self.provider)] + ([self.fallback] if self.fallback else [])
+        if used.get("switched"):
+            targets = targets[1:]
+        for i, (client, model, provider) in enumerate(targets):
+            try:
+                resp = client.chat.completions.create(model=model, **kwargs)
+                used.update(provider=provider, model=model)
+                return resp
+            except openai.APIError as exc:
+                if i == len(targets) - 1:
+                    raise
+                logger.warning("LLM %s:%s failed (%s); switching to fallback %s:%s",
+                               provider, model, type(exc).__name__, targets[i + 1][2], targets[i + 1][1])
+                used["switched"] = True
 
     # ---------- loop ----------
-    def chat(self, message: str, history: list[dict] | None = None, ecg_id: str | None = None, max_steps: int = 6) -> dict:
+    def chat(self, message: str, history: list[dict] | None = None, ecg_id: str | None = None, max_steps: int = MAX_STEPS) -> dict:
         messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
         messages += history or []
         user_content = message if not ecg_id else f"{message}\n\n[Attached ECG recording: ecg_id={ecg_id}]"
@@ -147,11 +83,18 @@ class Agent:
 
         trace: list[dict] = []
         sources: list[dict] = []
+        steps: list[dict] = []
+        used: dict = {}
         for _ in range(max_steps):
-            resp = self.client.chat.completions.create(model=self.model, messages=messages, tools=TOOLS, tool_choice="auto")
+            t = time.perf_counter()
+            resp = self._complete(messages, used)
             msg = resp.choices[0].message
+            steps.append({"type": "llm", "provider": used.get("provider"), "model": used.get("model"),
+                          "duration_ms": round((time.perf_counter() - t) * 1000, 1), "tokens": _tokens(resp),
+                          "decision": "answer" if not msg.tool_calls else "call_tools",
+                          "tool_calls": [tc.function.name for tc in msg.tool_calls or []]})
             if not msg.tool_calls:
-                return {"answer": msg.content, "tool_calls": trace, "sources": sources}
+                return {"answer": msg.content, "tool_calls": trace, "sources": sources, "llm": _llm_info(used), "steps": steps}
 
             messages.append(
                 {
@@ -168,10 +111,28 @@ class Agent:
                     args = json.loads(tc.function.arguments or "{}")
                 except json.JSONDecodeError:
                     args = {}
-                result = self.run_tool(tc.function.name, args)
+                result, ms = self.tools.timed_run(tc.function.name, args)
                 trace.append({"tool": tc.function.name, "arguments": args})
+                steps.append({"type": "tool", "tool": tc.function.name, "arguments": args, "duration_ms": ms,
+                              "ok": "error" not in result, "error": result.get("error")})
                 if tc.function.name == "search_knowledge_base":
                     sources += [{"source": r["source"], "chunk_index": r["chunk_index"], "score": r["score"]} for r in result.get("results", [])]
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
 
-        return {"answer": "Stopped: reached the maximum number of tool steps.", "tool_calls": trace, "sources": sources}
+        return {"answer": "Stopped: reached the maximum number of tool steps.", "tool_calls": trace, "sources": sources,
+                "llm": _llm_info(used), "steps": steps}
+
+
+def _client(ep: LLMEndpoint) -> OpenAI:
+    return OpenAI(api_key=ep.api_key, base_url=ep.base_url, max_retries=1, timeout=60)
+
+
+def _tokens(resp) -> dict | None:
+    usage = getattr(resp, "usage", None)
+    if usage is None:
+        return None
+    return {"prompt": getattr(usage, "prompt_tokens", None), "completion": getattr(usage, "completion_tokens", None)}
+
+
+def _llm_info(used: dict) -> dict:
+    return {"provider": used.get("provider"), "model": used.get("model"), "fallback_used": bool(used.get("switched"))}

@@ -11,6 +11,9 @@ sys.path.insert(0, str(ROOT))
 
 # Settings are required at import time; tests never contact these services.
 os.environ.setdefault("EMBEDDING_PROVIDER", "local")
+os.environ.setdefault("LLM_PROVIDER", "openai")
+os.environ.setdefault("LLM_FALLBACK_PROVIDER", "none")
+os.environ.setdefault("OPENAI_API_KEY", "test-key")
 os.environ.setdefault("LLM_API_KEY", "test-key")
 os.environ.setdefault("EMBEDDING_API_KEY", "test-key")
 
