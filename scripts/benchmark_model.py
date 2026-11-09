@@ -20,7 +20,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-os.environ.setdefault("LLM_API_KEY", "unused")
+os.environ.setdefault("OPENAI_API_KEY", "unused")  # settings need a key; no LLM is called
 
 import psutil  # noqa: E402
 

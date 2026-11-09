@@ -48,6 +48,7 @@ runs the full loop and returns a **step trace**: every LLM decision and tool exe
 End to end through the API's own beat detector: detection sensitivity 0.979, PPV 0.998, accuracy 0.942.
 The model is reliable for normal and ventricular beats but **misses most supraventricular beats**.
 Details, confidence intervals and limitations: [docs/MODEL_CARD.md](docs/MODEL_CARD.md) and [reports/evaluation.md](reports/evaluation.md).
+API reference with real request and response examples: [docs/API.md](docs/API.md). Changes: [CHANGELOG.md](CHANGELOG.md).
 Speed, calibration (ECE 0.013) and error analysis: [reports/performance.md](reports/performance.md). Test results: [reports/test_report.md](reports/test_report.md).
 
 ## Academic documents
@@ -81,15 +82,17 @@ app/
 notebooks/
   01_ecg_analysis.ipynb       exploratory ECG analysis
   02_lstm_training.ipynb      train, validate and test the LSTM, save to models/
-  03_lstm_as_llm_tool.ipynb   use the LSTM as an LLM tool, with and without RAG
+  03_lstm_as_llm_tool.ipynb   the LSTM as an OpenAI tool, with and without RAG, the Agent and the REST APIs
 scripts/
   evaluate_model.py           held-out accuracy evaluation -> reports/evaluation.md
   benchmark_model.py          speed, memory, calibration, error analysis -> reports/performance.md
   test_report.py              runs the whole suite -> reports/test_report.md
   make_figures.py             report figures and diagrams -> docs/figures/
+  demo_agent.py               live session against a running server: tools API + agent trace
 reports/                      committed evaluation, performance and test results
-tests/                        pytest suite (unit, API, vector store, model)
+tests/                        pytest suite (unit, API, integration, model, performance, live LLM)
 docs/
+  API.md                      API reference: agent flow, every endpoint, real examples, error codes
   MODEL_CARD.md               model details, validation protocol, results, limitations
   ecg_reference.md            seed document for the knowledge base
   academic/                   synopsis and project report (.docx and .pdf) and their generator
@@ -128,7 +131,8 @@ Run the notebooks in order from the `notebooks/` folder (`jupyter lab`):
 1. `01_ecg_analysis.ipynb` downloads MIT-BIH (~100 MB) into `data/mitdb/` and explores it.
 2. `02_lstm_training.ipynb` trains the Conv1D + BiLSTM classifier and writes `models/ecg_lstm.keras`,
    `models/ecg_lstm_meta.json` and `models/training_log.csv`. It takes about 10–15 minutes on a 2-core laptop CPU.
-3. `03_lstm_as_llm_tool.ipynb` wires the model to an LLM as a tool, adds Chroma RAG, and calls the API.
+3. `03_lstm_as_llm_tool.ipynb` wires the model to OpenAI as a tool, adds Chroma RAG, then uses the production
+   Agent and the Tools and Agent APIs (needs `OPENAI_API_KEY`; section 4 needs the server running).
 
 ### Validation protocol
 
@@ -261,6 +265,11 @@ input that does not look like an ECG (noise, artefact, no QRS complexes); the ag
 
 ## Notes
 
+- **Data sent to the LLM provider:** questions, conversation history and tool results (heart rate, beat counts,
+  abnormal beat times, retrieved document chunks) go to OpenAI, or to Google when the fallback is used. The raw ECG
+  signal is not sent. Use `LLM_PROVIDER=custom` with a local server (e.g. Ollama) to keep everything on-premises.
+- **Cost:** a typical ECG question uses two LLM calls of about 1,500 tokens in total with `gpt-4o-mini`.
+- The API has no authentication; run it on a trusted network.
 - Uploaded ECGs are kept in memory and are lost on restart. Use Redis or a database for persistence.
 - Re-uploading a document with the same name replaces its chunks.
 
